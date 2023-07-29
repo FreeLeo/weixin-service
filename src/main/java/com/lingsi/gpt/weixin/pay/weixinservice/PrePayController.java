@@ -1,5 +1,6 @@
 package com.lingsi.gpt.weixin.pay.weixinservice;
 
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,6 +32,7 @@ public class PrePayController {
 	/** 商户APIV3密钥 */
 	public static String apiV3key = System.getenv("GPT_PAY_API_V3_KEY");
 
+    @CrossOrigin(origins = "http://localhost:3000")
 	@PostMapping("/payPre")
     public Result<PrePay> payPre(UserRequest userRequest) {
 		// 使用自动更新平台证书的RSA配置
