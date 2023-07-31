@@ -47,6 +47,9 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+                	<mainClass>com.lingsi.gpt.weixin.pay.weixinservice.WeixinServiceApplication</mainClass>
+            	</configuration>
 			</plugin>
 		</plugins>
 	</build>

@@ -34,7 +34,7 @@ public class PrePayController {
 
     @CrossOrigin(origins = {"http://localhost:3000", "http://127.0.0.1:5000"})
 	@PostMapping("/payPre")
-    public Result<PrePay> payPre(UserRequest userRequest) {
+    public Result<PrePay> payPre(@RequestBody Order order) {
 		// 使用自动更新平台证书的RSA配置
         // 一个商户号只能初始化一个配置，否则会因为重复的下载任务报错
         Config config =
@@ -49,13 +49,13 @@ public class PrePayController {
         // request.setXxx(val)设置所需参数，具体参数可见Request定义
         PrepayRequest request = new PrepayRequest();
         Amount amount = new Amount();
-        amount.setTotal(100);
+        amount.setTotal(order.getAmount());
         request.setAmount(amount);
         request.setAppid(appId);
         request.setMchid(merchantId);
-        request.setDescription("测试商品标题");
-        request.setNotifyUrl("https://notify_url");
-        request.setOutTradeNo("out_trade_no_001");
+        request.setDescription(order.getTitle());
+        request.setNotifyUrl("http://23.251.52.214:5000/pay/notify");
+        request.setOutTradeNo(order.getOrder_id());
         // 调用下单方法，得到应答
         PrepayResponse response = service.prepay(request);
         // 使用微信扫描 code_url 对应的二维码，即可体验Native支付
