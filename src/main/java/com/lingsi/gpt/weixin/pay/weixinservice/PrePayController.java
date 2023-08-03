@@ -195,7 +195,7 @@ public class PrePayController {
                 BoundHashOperations<String, byte[], byte[]> hashOperations = redisTemplate.boundHashOps(orderKey);
 
                 // 使用 hset 方法更新订单状态为 "paid"
-                hashOperations.put("status".getBytes(StandardCharsets.UTF_8), "paid");
+                hashOperations.put("status".getBytes(StandardCharsets.UTF_8), "paid".getBytes(StandardCharsets.UTF_8));
                 hashOperations.expire(6 * 30, TimeUnit.DAYS);
 
                 String[] keyParts = orderKey.split(":");

@@ -20,8 +20,7 @@ public class JedisConfig {
 
     @Bean
     public JedisConnectionFactory jedisConnectionFactory() {
-        RedisStandaloneConfiguration redisStandaloneConfiguration = new RedisStandaloneConfiguration("192.168.3.229", 6379);
-        redisStandaloneConfiguration.setPassword("lizhen-redis");
+        RedisStandaloneConfiguration redisStandaloneConfiguration = new RedisStandaloneConfiguration(host, port);
         return new JedisConnectionFactory(redisStandaloneConfiguration);
     }
 
