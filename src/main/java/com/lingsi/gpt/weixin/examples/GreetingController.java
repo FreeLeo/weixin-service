@@ -1,6 +1,8 @@
 package com.lingsi.gpt.weixin.examples;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -27,12 +29,28 @@ public class GreetingController {
     private final AtomicLong counter = new AtomicLong();
 
     @Resource
-    private RedisTemplate<String, String> redisTemplate;
+    private RedisTemplate<String, byte[]> redisTemplate;
+
+    private final List<Map<String, Object>> packages = List.of(
+            Map.of(
+                    "id", "1",
+                    "title", "基础套餐（推荐）",
+                    "basic_chat_limit", 10,
+                    "advanced_chat_limit", 10,
+                    "price", 1,
+                    "expiration", -1),
+            Map.of(
+                    "id", "2",
+                    "title", "高级套餐",
+                    "basic_chat_limit", -1,
+                    "advanced_chat_limit", -1,
+                    "price", 100,
+                    "expiration", -1));
 
     @RequestMapping("/greeting")
-    public Greeting greeting(@RequestParam(value="name", defaultValue="World") String name) {
+    public Greeting greeting(@RequestParam(value = "name", defaultValue = "World") String name) {
         return new Greeting(counter.incrementAndGet(),
-                        String.format(template, name));
+                String.format(template, name));
     }
 
     @PostMapping("/user")
@@ -43,76 +61,83 @@ public class GreetingController {
     @PostMapping("/notifyPay")
     public void notifyPay() {
         System.out.println("notifyPay start");
-        // RedisStandaloneConfiguration redisStandaloneConfiguration = new RedisStandaloneConfiguration("192.168.3.229", 6379);
-        // redisStandaloneConfiguration.setPassword("lizhen-redis");
-        // JedisConnectionFactory jedisConnectionFactory = new JedisConnectionFactory(redisStandaloneConfiguration);
-        // jedisConnectionFactory.afterPropertiesSet();
-        // RedisTemplate<String, String> redisTemplate = new RedisTemplate<>();
-        // redisTemplate.setConnectionFactory(jedisConnectionFactory);
-
-        testConnection();
+        // testConnection();
 
         // String orderKey = "order:333:111";
-
-        // // 使用 boundHashOps 方法获取 BoundHashOperations 实例
-        // BoundHashOperations<byte[], byte[], byte[]> hashOperations = redisTemplate.boundHashOps(orderKey.getBytes(StandardCharsets.UTF_8));
-
-        // // 使用 get 方法读取 status 字段的值
-        // byte[] statusValueBytes = hashOperations.get("status".getBytes(StandardCharsets.UTF_8));
-
+        // BoundHashOperations<String, byte[], byte[]> hashOperations =
+        // redisTemplate.boundHashOps(orderKey);
+        // System.out.println("【status】: "+hashOperations.get("status"));
+        // byte[] statusValueBytes = hashOperations.get("status");
         // if (statusValueBytes != null) {
-        //     System.out.println(new String(statusValueBytes, StandardCharsets.UTF_8));
+        // System.out.println(new String(statusValueBytes, StandardCharsets.UTF_8));
         // } else {
-        //     System.out.println("order:333:111 is " + null);
+        // System.out.println("order:333:111 is " + null);
         // }
-        // HashOperations<String, Object, Object> hashOperations = redisTemplate.opsForHash();
-        // String orderKeyPattern = "order:333:111";
-        // Object object = hashOperations.get(orderKeyPattern, "status");
-        // System.out.println("order:333:111 is " + object);
-        // Set<String> matchingKeys = redisTemplate.keys(orderKeyPattern);
 
-        // if (!matchingKeys.isEmpty()) {
-        //     // 只取第一个匹配到的键
-        //     String orderKey = matchingKeys.iterator().next();
-        //     BoundHashOperations<String, String, Object> hashOperations = redisTemplate.boundHashOps(orderKey);
+        String orderKeyPattern = "order:*:111";
+        Set<String> matchingKeys = redisTemplate.keys(orderKeyPattern);
 
-        //     // 使用 hset 方法更新订单状态为 "paid"
-        //     hashOperations.put("status", "paid");
-        //     hashOperations.expire(6 * 30, TimeUnit.DAYS);
+        if (!matchingKeys.isEmpty()) {
+            // 只取第一个匹配到的键
+            String orderKey = matchingKeys.iterator().next();
+            BoundHashOperations<String, byte[], byte[]> orderHash = redisTemplate.boundHashOps(orderKey);
 
-        //     String[] keyParts = orderKey.split(":");
-        //     String userId = keyParts[1]; // user_id 在键名的第二个位置
-        //     byte[] packageIdBytes = (byte[]) hashOperations.get("package_id".getBytes(StandardCharsets.UTF_8));
-        //     String package_id = new String(packageIdBytes, StandardCharsets.UTF_8);
-        //     System.out.println(package_id);
+            // 使用 hset 方法更新订单状态为 "paid"
+            orderHash.put("status".getBytes(StandardCharsets.UTF_8), "paid".getBytes(StandardCharsets.UTF_8));
+            orderHash.expire(6 * 30, TimeUnit.DAYS);
 
-        // }
+            String[] keyParts = orderKey.split(":");
+            String userId = keyParts[1]; // user_id 在键名的第二个位置
+            byte[] packageIdBytes = orderHash.get("package_id".getBytes(StandardCharsets.UTF_8));
+            String package_id = new String(packageIdBytes, StandardCharsets.UTF_8);
+            System.out.println(userId + " , " + package_id);
+            Map<String, Object> packageMap = getPackageById(package_id);
+            storeUserPackage(userId, packageMap);
+        }
     }
 
-    public boolean testConnection() {
-        try {
-            // 获取 ValueOperations 实例
-            ValueOperations<String, String> valueOps = redisTemplate.opsForValue();
+    public void storeUserPackage(String userId, Map<String, Object> packageInfo) {
+        BoundHashOperations<String, byte[], byte[]> userPackage = getUserPackage(userId);
+        int basicChatLimit = (int) packageInfo.get("basic_chat_limit");
+        int advancedChatLimit = (int) packageInfo.get("advanced_chat_limit");
 
-            // 设置一个测试 key-value
-            String testKey = "testKey";
-            String testValue = "testValue";
-            valueOps.set(testKey, testValue);
-
-            // 读取测试 key 的 value
-            String retrievedValue = valueOps.get(testKey);
-
-            // 检查读取的 value 是否与设置的值一致
-            if (testValue.equals(retrievedValue)) {
-                System.out.println("Redis 连接测试成功，连接正常！");
-                return true;
-            } else {
-                System.out.println("Redis 连接测试失败，连接异常！");
-                return false;
-            }
-        } catch (Exception e) {
-            System.out.println("Redis 连接测试失败，连接异常：" + e.getMessage());
-            return false;
+        if (userPackage != null
+                && userPackage.size() > 0
+                && userPackage.hasKey("basic_chat_limit".getBytes(StandardCharsets.UTF_8))
+                && userPackage.hasKey("advanced_chat_limit".getBytes(StandardCharsets.UTF_8))) {
+            basicChatLimit += Integer.parseInt(new String(userPackage.get("basic_chat_limit".getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
+            advancedChatLimit += Integer.parseInt(new String(userPackage.get("advanced_chat_limit".getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
         }
+
+        String userPackageKey = "user:" + userId + ":package";
+        BoundHashOperations<String, byte[], byte[]> orderHash = redisTemplate.boundHashOps(userPackageKey);
+        orderHash.put("id".getBytes(StandardCharsets.UTF_8),
+                packageInfo.get("id").toString().getBytes(StandardCharsets.UTF_8));
+        orderHash.put("title".getBytes(StandardCharsets.UTF_8),
+                packageInfo.get("title").toString().getBytes(StandardCharsets.UTF_8));
+        orderHash.put("basic_chat_limit".getBytes(StandardCharsets.UTF_8), String.valueOf(basicChatLimit).getBytes(StandardCharsets.UTF_8));
+        orderHash.put("advanced_chat_limit".getBytes(StandardCharsets.UTF_8), String.valueOf(advancedChatLimit).getBytes(StandardCharsets.UTF_8));
+    }
+
+    public BoundHashOperations<String, byte[], byte[]> getUserPackage(String userId) {
+        String userPackageKey = "user:" + userId + ":package";
+        BoundHashOperations<String, byte[], byte[]> userHash = redisTemplate.boundHashOps(userPackageKey);
+        return userHash;
+    }
+
+    public Map<String, Object> getPackageById(String packageId) {
+        for (Map<String, Object> packageInfo : packages) {
+            if (packageInfo.get("id").equals(packageId)) {
+                return packageInfo;
+            }
+        }
+        return null;
+    }
+
+    private int bytesToInt(byte[] bytes) {
+        return ((bytes[0] & 0xFF) << 24) |
+               ((bytes[1] & 0xFF) << 16) |
+               ((bytes[2] & 0xFF) << 8) |
+               (bytes[3] & 0xFF);
     }
 }
