@@ -59,6 +59,17 @@
     		<groupId>redis.clients</groupId>
     		<artifactId>jedis</artifactId>
 		</dependency>
+		<!--配置映射-->
+		<dependency>
+    		<groupId>org.springframework.boot</groupId>
+    		<artifactId>spring-boot-configuration-processor</artifactId>
+    		<optional>true</optional>
+		</dependency>
+		<dependency>
+        	<groupId>org.projectlombok</groupId>
+        	<artifactId>lombok</artifactId>
+        	<scope>provided</scope>
+    	</dependency>
 	</dependencies>
 
 	<build>

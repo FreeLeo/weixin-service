@@ -13,6 +13,10 @@ import java.util.concurrent.TimeUnit;
 import javax.crypto.BadPaddingException;
 
 import org.apache.commons.logging.Log;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.util.EntityUtils;
 import org.springframework.boot.autoconfigure.data.redis.RedisProperties.Jedis;
 import org.springframework.data.redis.core.BoundHashOperations;
 import org.springframework.data.redis.core.HashOperations;
@@ -26,9 +30,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lingsi.gpt.weixin.examples.UserRequest;
+import com.wechat.pay.contrib.apache.httpclient.WechatPayHttpClientBuilder;
 import com.wechat.pay.contrib.apache.httpclient.auth.PrivateKeySigner;
 import com.wechat.pay.contrib.apache.httpclient.auth.Verifier;
 import com.wechat.pay.contrib.apache.httpclient.auth.WechatPay2Credentials;
+import com.wechat.pay.contrib.apache.httpclient.auth.WechatPay2Validator;
 import com.wechat.pay.contrib.apache.httpclient.cert.CertificatesManager;
 import com.wechat.pay.contrib.apache.httpclient.exception.HttpCodeException;
 import com.wechat.pay.contrib.apache.httpclient.exception.NotFoundException;
@@ -188,6 +194,12 @@ public class PrePayController {
                 String orderKey = matchingKeys.iterator().next();
                 BoundHashOperations<String, byte[], byte[]> orderHash = redisTemplate.boundHashOps(orderKey);
 
+                byte[] statusBytes = orderHash.get("status".getBytes(StandardCharsets.UTF_8));
+                String status = new String(statusBytes, StandardCharsets.UTF_8);
+                if(status.equals("paid")) {
+                    return new Result<String>(CodeState.RESULT_CODE_SUCCESS, "");
+                }
+
                 // 使用 hset 方法更新订单状态为 "paid"
                 orderHash.put("status".getBytes(StandardCharsets.UTF_8), "paid".getBytes(StandardCharsets.UTF_8));
                 orderHash.expire(6 * 30, TimeUnit.DAYS);
@@ -239,8 +251,10 @@ public class PrePayController {
                 && userPackage.size() > 0
                 && userPackage.hasKey("basic_chat_limit".getBytes(StandardCharsets.UTF_8))
                 && userPackage.hasKey("advanced_chat_limit".getBytes(StandardCharsets.UTF_8))) {
-            basicChatLimit += Integer.parseInt(new String(userPackage.get("basic_chat_limit".getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
-            advancedChatLimit += Integer.parseInt(new String(userPackage.get("advanced_chat_limit".getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
+            basicChatLimit += Integer.parseInt(new String(
+                    userPackage.get("basic_chat_limit".getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
+            advancedChatLimit += Integer.parseInt(new String(
+                    userPackage.get("advanced_chat_limit".getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
         }
 
         String userPackageKey = "user:" + userId + ":package";
@@ -249,8 +263,10 @@ public class PrePayController {
                 packageInfo.get("id").toString().getBytes(StandardCharsets.UTF_8));
         orderHash.put("title".getBytes(StandardCharsets.UTF_8),
                 packageInfo.get("title").toString().getBytes(StandardCharsets.UTF_8));
-        orderHash.put("basic_chat_limit".getBytes(StandardCharsets.UTF_8), String.valueOf(basicChatLimit).getBytes(StandardCharsets.UTF_8));
-        orderHash.put("advanced_chat_limit".getBytes(StandardCharsets.UTF_8), String.valueOf(advancedChatLimit).getBytes(StandardCharsets.UTF_8));
+        orderHash.put("basic_chat_limit".getBytes(StandardCharsets.UTF_8),
+                String.valueOf(basicChatLimit).getBytes(StandardCharsets.UTF_8));
+        orderHash.put("advanced_chat_limit".getBytes(StandardCharsets.UTF_8),
+                String.valueOf(advancedChatLimit).getBytes(StandardCharsets.UTF_8));
     }
 
     public BoundHashOperations<String, byte[], byte[]> getUserPackage(String userId) {
@@ -266,5 +282,48 @@ public class PrePayController {
             }
         }
         return null;
+    }
+
+    @CrossOrigin(origins = { "http://localhost:3000", "http://127.0.0.1:5000" })
+    @PostMapping("/weixin/queryOrder")
+    public String queryOrder(String orderNo) throws Exception {
+
+        // 拼接请求的第三方API
+        String url = String.format(WxApiType.ORDER_QUERY_BY_NO.getType(), orderNo);
+        url = "https://api.mch.weixin.qq.com".concat(url).concat("?mchid=").concat(merchantId);
+
+        HttpGet httpGet = new HttpGet(url);
+        httpGet.setHeader("Accept", "application/json");
+
+        // 完成签名并执行请求
+        if (privateKey == null) {
+            privateKey = PemUtil.loadPrivateKeyFromPath(privateKeyPath);
+        }
+        WechatPayHttpClientBuilder builder = WechatPayHttpClientBuilder.create()
+                .withMerchant(merchantId, merchantSerialNumber, privateKey)
+                .withValidator(new WechatPay2Validator(getVerifier(privateKey)));
+
+        // 通过WechatPayHttpClientBuilder构造的HttpClient，会自动的处理签名和验签，并进行证书自动更新
+        CloseableHttpClient httpClient = builder.build();
+        CloseableHttpResponse response = httpClient.execute(httpGet);
+
+        try {
+            String bodyAsString = EntityUtils.toString(response.getEntity());// 响应体
+            int statusCode = response.getStatusLine().getStatusCode();// 响应状态码
+            if (statusCode == 200) { // 处理成功
+                System.out.println("成功, 返回结果 = " + bodyAsString);
+            } else if (statusCode == 204) { // 处理成功，无返回Body
+                System.out.println("成功");
+            } else {
+                System.out.println("查单接口调用,响应码 = " + statusCode + ",返回结果 = " + bodyAsString);
+                throw new IOException("request failed");
+            }
+
+            return bodyAsString;
+
+        } finally {
+            response.close();
+        }
+
     }
 }
