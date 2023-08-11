@@ -196,7 +196,7 @@ public class PrePayController {
 
                 byte[] statusBytes = orderHash.get("status".getBytes(StandardCharsets.UTF_8));
                 String status = new String(statusBytes, StandardCharsets.UTF_8);
-                if(status.equals("paid")) {
+                if (status.equals("paid")) {
                     return new Result<String>(CodeState.RESULT_CODE_SUCCESS, "");
                 }
 
@@ -267,6 +267,12 @@ public class PrePayController {
                 String.valueOf(basicChatLimit).getBytes(StandardCharsets.UTF_8));
         orderHash.put("advanced_chat_limit".getBytes(StandardCharsets.UTF_8),
                 String.valueOf(advancedChatLimit).getBytes(StandardCharsets.UTF_8));
+        int expiration = (int) packageInfo.get("expiration");
+        long currentExpire = 0;
+        if (orderHash.getExpire() != null) {
+            orderHash.getExpire();
+        }
+        orderHash.expire(currentExpire + expiration, TimeUnit.SECONDS);
     }
 
     public BoundHashOperations<String, byte[], byte[]> getUserPackage(String userId) {
