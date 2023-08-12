@@ -234,8 +234,14 @@ public class PrePayController {
         if (userPackage != null
                 && userPackage.size() > 0
                 && userPackage.hasKey("basic_chat_limit".getBytes(StandardCharsets.UTF_8))
-                && userPackage.hasKey("advanced_chat_limit".getBytes(StandardCharsets.UTF_8))) {
+                && basicChatLimit >= 0) {
             basicChatLimit += Integer.parseInt(new String(userPackage.get("basic_chat_limit".getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
+        }
+
+        if (userPackage != null
+                && userPackage.size() > 0
+                && userPackage.hasKey("advanced_chat_limit".getBytes(StandardCharsets.UTF_8))
+                && advancedChatLimit >= 0) {
             advancedChatLimit += Integer.parseInt(new String(userPackage.get("advanced_chat_limit".getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
         }
 
