@@ -191,8 +191,7 @@ public class PrePayController {
                 String[] keyParts = orderKey.split(":");
                 String userId = keyParts[1]; // user_id 在键名的第二个位置
                 byte[] packageIdBytes = orderHash.get("package_id".getBytes(StandardCharsets.UTF_8));
-                String package_id = new String(packageIdBytes, StandardCharsets.UTF_8);
-                System.out.println(userId + " , " + package_id);
+                int package_id = Integer.parseInt(new String(packageIdBytes, StandardCharsets.UTF_8));
                 PackageInfo packageMap = getPackageById(package_id);
                 storeUserPackage(userId, packageMap);
             }
@@ -235,32 +234,49 @@ public class PrePayController {
                 && userPackage.size() > 0
                 && userPackage.hasKey("basic_chat_limit".getBytes(StandardCharsets.UTF_8))
                 && basicChatLimit >= 0) {
-            basicChatLimit += Integer.parseInt(new String(userPackage.get("basic_chat_limit".getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
+            basicChatLimit += Integer.parseInt(new String(
+                    userPackage.get("basic_chat_limit".getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
         }
 
         if (userPackage != null
                 && userPackage.size() > 0
                 && userPackage.hasKey("advanced_chat_limit".getBytes(StandardCharsets.UTF_8))
                 && advancedChatLimit >= 0) {
-            advancedChatLimit += Integer.parseInt(new String(userPackage.get("advanced_chat_limit".getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
+            advancedChatLimit += Integer.parseInt(new String(
+                    userPackage.get("advanced_chat_limit".getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
+        }
+
+        int currentPackageId = 0;
+        if (userPackage != null
+            && userPackage.size() > 0
+            && userPackage.hasKey("id".getBytes(StandardCharsets.UTF_8))) {
+            currentPackageId = Integer
+                .parseInt(new String(userPackage.get("id".getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
         }
 
         String userPackageKey = "user:" + userId + ":package";
         BoundHashOperations<String, byte[], byte[]> orderHash = redisTemplate.boundHashOps(userPackageKey);
-        orderHash.put("id".getBytes(StandardCharsets.UTF_8),
-                packageInfo.id.getBytes(StandardCharsets.UTF_8));
-        orderHash.put("title".getBytes(StandardCharsets.UTF_8),
-                packageInfo.title.getBytes(StandardCharsets.UTF_8));
-        orderHash.put("basic_chat_limit".getBytes(StandardCharsets.UTF_8), String.valueOf(basicChatLimit).getBytes(StandardCharsets.UTF_8));
-        orderHash.put("advanced_chat_limit".getBytes(StandardCharsets.UTF_8), String.valueOf(advancedChatLimit).getBytes(StandardCharsets.UTF_8));
+
+        if (currentPackageId < packageInfo.id) {
+            orderHash.put("id".getBytes(StandardCharsets.UTF_8),
+                    String.valueOf(packageInfo.id).getBytes(StandardCharsets.UTF_8));
+            orderHash.put("title".getBytes(StandardCharsets.UTF_8),
+                    packageInfo.title.getBytes(StandardCharsets.UTF_8));
+        }
+        orderHash.put("basic_chat_limit".getBytes(StandardCharsets.UTF_8),
+                String.valueOf(basicChatLimit).getBytes(StandardCharsets.UTF_8));
+        orderHash.put("advanced_chat_limit".getBytes(StandardCharsets.UTF_8),
+                String.valueOf(advancedChatLimit).getBytes(StandardCharsets.UTF_8));
 
         int expiration = packageInfo.expiration;
-        System.out.println("storeUserPackage expiration = " + expiration);
+
         long currentExpire = 0;
-        if (orderHash.getExpire() != null) {
-            currentExpire = orderHash.getExpire();
+        if (currentPackageId != 1 || packageInfo.id == 1) {
+            if (orderHash.getExpire() != null) {
+                currentExpire = orderHash.getExpire();
+            }
         }
-        System.out.println("storeUserPackage currentExpire = " + currentExpire);
+
         orderHash.expire(currentExpire + expiration, TimeUnit.SECONDS);
     }
 
@@ -270,9 +286,9 @@ public class PrePayController {
         return userHash;
     }
 
-    public PackageInfo getPackageById(String packageId) {
+    public PackageInfo getPackageById(int packageId) {
         for (PackageInfo packageInfo : PackageInfo.getPackages()) {
-            if (packageInfo.id.equals(packageId)) {
+            if (packageInfo.id == packageId) {
                 return packageInfo;
             }
         }
